@@ -5,24 +5,28 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     header("location: index.php");
     exit;
 }
+
 // --- LÓGICA DO FILTRO ---
 $estado_filtro_id = isset($_GET['estado_id']) ? intval($_GET['estado_id']) : 0;
 $cidade_filtro_id = isset($_GET['cidade_id']) ? intval($_GET['cidade_id']) : 0;
+
 // Busca todos os estados para preencher o menu do filtro
 $estados = [];
 $sql_estados_filtro = "SELECT id, nome FROM estados ORDER BY nome ASC";
 $res_estados = $conexao->query($sql_estados_filtro);
 if($res_estados) { while($row = $res_estados->fetch_assoc()) { $estados[] = $row; } }
 
-// --- LÓGICA DA BUSCA PRINCIPAL DE LOJAS ---
+// --- LÓGICA DA BUSCA DE LOJAS (COM FILTRO) ---
 $sql_lojas = "SELECT l.id, l.nome, l.localizacao, l.contato, l.descricao, l.caminho_foto, c.nome as cidade_nome, e.uf as estado_uf FROM lojas l LEFT JOIN cidades c ON l.cidade_id = c.id LEFT JOIN estados e ON c.estado_id = e.id";
-$where_clauses = []; $params = []; $types = '';
-if ($estado_filtro_id > 0) { $where_clauses[] = "e.id = ?"; $params[] = $estado_filtro_id; $types .= 'i'; }
-if ($cidade_filtro_id > 0) { $where_clauses[] = "l.cidade_id = ?"; $params[] = $cidade_filtro_id; $types .= 'i'; }
-if (!empty($where_clauses)) { $sql_lojas .= " WHERE " . implode(" AND ", $where_clauses); }
+$where_clauses_lojas = []; 
+$params_lojas = []; 
+$types_lojas = '';
+if ($estado_filtro_id > 0) { $where_clauses_lojas[] = "e.id = ?"; $params_lojas[] = $estado_filtro_id; $types_lojas .= 'i'; }
+if ($cidade_filtro_id > 0) { $where_clauses_lojas[] = "l.cidade_id = ?"; $params_lojas[] = $cidade_filtro_id; $types_lojas .= 'i'; }
+if (!empty($where_clauses_lojas)) { $sql_lojas .= " WHERE " . implode(" AND ", $where_clauses_lojas); }
 $sql_lojas .= " ORDER BY l.nome";
 $stmt_lojas = $conexao->prepare($sql_lojas);
-if (!empty($params)) { $stmt_lojas->bind_param($types, ...$params); }
+if (!empty($params_lojas)) { $stmt_lojas->bind_param($types_lojas, ...$params_lojas); }
 $stmt_lojas->execute();
 $resultado_lojas = $stmt_lojas->get_result();
 ?>
@@ -54,7 +58,7 @@ $resultado_lojas = $stmt_lojas->get_result();
         <h1>Lojas e Pets Cadastrados</h1>
         
         <div class="filtro-container">
-            <h3>Filtrar Lojas</h3>
+            <h3>Filtrar por Localização</h3>
             <form class="filtro-form" action="pesquisar.php" method="get">
                 <div>
                     <label for="estado_filtro">Estado:</label>
@@ -76,7 +80,7 @@ $resultado_lojas = $stmt_lojas->get_result();
             </form>
         </div>
 
-        <h2><?php echo !empty($cidade_filtro_id) || !empty($estado_filtro_id) ? "Resultado da Busca" : "Todas as Lojas"; ?></h2>
+        <h2><?php echo !empty($cidade_filtro_id) || !empty($estado_filtro_id) ? "Lojas Encontradas no Filtro" : "Todas as Lojas"; ?></h2>
         <?php
         if ($resultado_lojas && $resultado_lojas->num_rows > 0) {
             while ($loja = $resultado_lojas->fetch_assoc()) {
@@ -89,8 +93,8 @@ $resultado_lojas = $stmt_lojas->get_result();
                 if (!empty($loja['descricao'])) { echo "<p><strong>Descrição:</strong><br>" . nl2br(htmlspecialchars($loja['descricao'])) . "</p>"; }
                 
                 echo "<h4>Pets nesta loja:</h4>";
-                $sql_pets = "SELECT nome, raca, tipo_animal, idade, caminho_foto FROM pets WHERE id_loja = ? ORDER BY nome";
-                if ($stmt_pets = $conexao->prepare($sql_pets)) {
+                $sql_pets_na_loja = "SELECT nome, raca, tipo_animal, idade, caminho_foto, contato FROM pets WHERE id_loja = ? ORDER BY nome";
+                if ($stmt_pets = $conexao->prepare($sql_pets_na_loja)) {
                     $stmt_pets->bind_param("i", $loja['id']);
                     $stmt_pets->execute();
                     $resultado_pets = $stmt_pets->get_result();
@@ -103,6 +107,7 @@ $resultado_lojas = $stmt_lojas->get_result();
                             if (!empty($pet['tipo_animal'])) { $detalhes_pet[] = htmlspecialchars($pet['tipo_animal']); }
                             if (!empty($pet['raca'])) { $detalhes_pet[] = htmlspecialchars($pet['raca']); }
                             if (!empty($pet['idade'])) { $detalhes_pet[] = htmlspecialchars($pet['idade']) . " anos"; }
+                            if (!empty($pet['contato'])) { $detalhes_pet[] = "Contato: " . htmlspecialchars($pet['contato']); }
                             echo implode(' &bull; ', $detalhes_pet);
                             echo "</div></div>";
                         }
@@ -111,14 +116,27 @@ $resultado_lojas = $stmt_lojas->get_result();
                 }
                 echo "</div>";
             }
-        } else { echo "<p>Nenhuma loja encontrada com os critérios selecionados.</p>"; }
+        } else {
+            echo "<p>Nenhuma loja encontrada com os critérios selecionados.</p>";
+        }
         ?>
         
         <hr>
-        <h2>Pets Sem Loja</h2>
+        <h2><?php echo !empty($cidade_filtro_id) || !empty($estado_filtro_id) ? "Pets Sem Loja no Filtro" : "Pets Sem Loja"; ?></h2>
         <?php
-        $sql_pets_sem_loja = "SELECT p.nome, p.raca, p.tipo_animal, p.idade, p.caminho_foto, c.nome as cidade_nome, e.uf as estado_uf FROM pets p LEFT JOIN cidades c ON p.cidade_id = c.id LEFT JOIN estados e ON c.estado_id = e.id WHERE p.id_loja IS NULL ORDER BY p.nome";
-        $resultado_pets_sem_loja = $conexao->query($sql_pets_sem_loja);
+        $sql_pets_sem_loja = "SELECT p.nome, p.raca, p.tipo_animal, p.idade, p.caminho_foto, p.contato, c.nome as cidade_nome, e.uf as estado_uf FROM pets p LEFT JOIN cidades c ON p.cidade_id = c.id LEFT JOIN estados e ON c.estado_id = e.id WHERE p.id_loja IS NULL";
+        
+        $where_clauses_pets = []; $params_pets = []; $types_pets = '';
+        if ($estado_filtro_id > 0) { $where_clauses_pets[] = "e.id = ?"; $params_pets[] = $estado_filtro_id; $types_pets .= 'i'; }
+        if ($cidade_filtro_id > 0) { $where_clauses_pets[] = "p.cidade_id = ?"; $params_pets[] = $cidade_filtro_id; $types_pets .= 'i'; }
+        if (!empty($where_clauses_pets)) { $sql_pets_sem_loja .= " AND " . implode(" AND ", $where_clauses_pets); }
+        $sql_pets_sem_loja .= " ORDER BY p.nome";
+        
+        $stmt_pets_sem_loja = $conexao->prepare($sql_pets_sem_loja);
+        if (!empty($params_pets)) { $stmt_pets_sem_loja->bind_param($types_pets, ...$params_pets); }
+        $stmt_pets_sem_loja->execute();
+        $resultado_pets_sem_loja = $stmt_pets_sem_loja->get_result();
+
         if ($resultado_pets_sem_loja && $resultado_pets_sem_loja->num_rows > 0) {
             while ($pet = $resultado_pets_sem_loja->fetch_assoc()) {
                 echo "<div class='pet'>";
@@ -128,15 +146,19 @@ $resultado_lojas = $stmt_lojas->get_result();
                 if (!empty($pet['tipo_animal'])) { $detalhes_pet[] = htmlspecialchars($pet['tipo_animal']); }
                 if (!empty($pet['raca'])) { $detalhes_pet[] = htmlspecialchars($pet['raca']); }
                 if (!empty($pet['idade'])) { $detalhes_pet[] = htmlspecialchars($pet['idade']) . " anos"; }
+                if (!empty($pet['contato'])) { $detalhes_pet[] = "Contato: " . htmlspecialchars($pet['contato']); }
                 if (!empty($pet['cidade_nome'])) { $detalhes_pet[] = "Localização: " . htmlspecialchars($pet['cidade_nome']) . '/' . htmlspecialchars($pet['estado_uf']); }
                 echo implode(' &bull; ', $detalhes_pet);
                 echo "</div></div>";
             }
-        } else { echo "<p>Nenhum pet sem loja cadastrado.</p>"; }
+        } else {
+            echo "<p>Nenhum pet sem loja encontrado com os critérios selecionados.</p>";
+        }
         ?>
         
         <p class="voltar"><a href="painel.php">Voltar ao Painel</a></p>
     </div>
+
     <script>
     const estadoSelect = document.getElementById('estado_filtro');
     const cidadeSelect = document.getElementById('cidade_filtro');

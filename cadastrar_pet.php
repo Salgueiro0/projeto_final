@@ -1,7 +1,7 @@
 <?php
-require 'config.php';
+require_once 'config.php';
 
-// Verifica se o usuário está logado
+// Redireciona se não estiver logado
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     header("location: index.php");
     exit;
@@ -12,15 +12,11 @@ $id_usuario_logado = $_SESSION['id'];
 
 // Busca apenas as lojas que pertencem ao usuário logado
 $lojas = [];
-// A query SQL agora tem a cláusula WHERE para filtrar pelo dono
 $sql_lojas = "SELECT id, nome FROM lojas WHERE id_usuario = ? ORDER BY nome";
-
 if ($stmt = $conexao->prepare($sql_lojas)) {
-    // Faz o bind do ID do usuário logado na query
     $stmt->bind_param("i", $id_usuario_logado);
     $stmt->execute();
     $resultado = $stmt->get_result();
-
     while ($linha = $resultado->fetch_assoc()) {
         $lojas[] = $linha;
     }
@@ -31,24 +27,44 @@ if ($stmt = $conexao->prepare($sql_lojas)) {
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Cadastrar Pet</title>
+    <title>Cadastrar Novo Pet</title>
     <style>
-        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f2f5; }
-        .form-container { padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 400px; }
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f2f5; padding: 2rem 0; }
+        .form-container { padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 450px; }
         h2 { text-align: center; }
-        input, select { display: block; width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 0.7rem; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        input, select { display: block; width: 100%; padding: 0.7rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 0.8rem; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #218838; }
         p { text-align: center; margin-top: 1rem; }
     </style>
 </head>
 <body>
     <div class="form-container">
         <h2>Cadastrar Novo Pet</h2>
-        <form action="processa_cadastro_pet.php" method="post">
+        <form action="processa_cadastro_pet.php" method="post" enctype="multipart/form-data">
             <label for="nome">Nome do Pet:</label>
-            <input type="text" name="nome" required>
+            <input type="text" id="nome" name="nome" required>
+
+            <label for="tipo_animal">Tipo de Animal:</label>
+            <select id="tipo_animal" name="tipo_animal">
+                <option value="">-- Selecione --</option>
+                <option value="Cachorro">Cachorro</option>
+                <option value="Gato">Gato</option>
+                <option value="Pássaro">Pássaro</option>
+                <option value="Roedor">Roedor (Hamster, etc)</option>
+                <option value="Outro">Outro</option>
+            </select>
+
             <label for="raca">Raça:</label>
-            <input type="text" name="raca">
+            <input type="text" id="raca" name="raca">
+
+            <label for="idade">Idade (anos):</label>
+            <input type="number" id="idade" name="idade" min="0">
+
+            <label for="foto">Foto do Pet:</label>
+            <input type="file" id="foto" name="foto" accept="image/png, image/jpeg">
+
             <label for="id_loja">Ligar a uma de Suas Lojas (Opcional):</label>
             <select name="id_loja">
                 <option value="">Nenhuma / Pet sem loja</option>

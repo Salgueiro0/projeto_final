@@ -1,48 +1,35 @@
 <?php
 require 'config.php';
 
-// Redireciona se não estiver logado
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     header("location: index.php");
     exit;
 }
 
-$caminho_foto = null; // Inicia o caminho da foto como nulo
-
-// Verifica se um arquivo foi enviado e se não houve erro no upload
+$caminho_foto = null;
 if (isset($_FILES['foto']) && $_FILES['foto']['error'] == UPLOAD_ERR_OK) {
-    $pasta_uploads = 'uploads/'; // A pasta onde as imagens serão salvas
-    
-    // Gera um nome único para o arquivo para evitar que um substitua o outro
+    $pasta_uploads = 'uploads/';
     $nome_arquivo = uniqid() . '_' . basename($_FILES['foto']['name']);
     $caminho_completo = $pasta_uploads . $nome_arquivo;
-
-    // Tenta mover o arquivo da pasta temporária do servidor para a nossa pasta 'uploads'
     if (move_uploaded_file($_FILES['foto']['tmp_name'], $caminho_completo)) {
-        // Se o upload deu certo, salvamos o caminho para guardar no banco de dados
         $caminho_foto = $caminho_completo;
-    } else {
-        // Se falhar, podemos avisar o usuário, mas o cadastro continua sem a foto
-        echo "Atenção: Houve um erro ao fazer o upload da imagem, mas a loja será cadastrada sem ela.";
     }
 }
 
-// Pega todos os dados do formulário, incluindo os novos
+// Pega os dados do formulário
 $nome = $_POST['nome'];
 $localizacao = $_POST['localizacao'];
-$cidade = $_POST['cidade'];
-$estado = $_POST['estado'];
+$cidade_id = $_POST['cidade_id']; // NOVO: agora pegamos o ID da cidade
 $contato = $_POST['contato'];
 $descricao = $_POST['descricao'];
-$id_usuario = $_SESSION['id']; // Pega o ID do usuário logado
+$id_usuario = $_SESSION['id'];
 
-// SQL atualizado para incluir TODOS os novos campos
-$sql = "INSERT INTO lojas (nome, localizacao, id_usuario, contato, descricao, caminho_foto, cidade, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+// SQL atualizado para usar o 'cidade_id'
+$sql = "INSERT INTO lojas (nome, localizacao, id_usuario, contato, descricao, caminho_foto, cidade_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
 if ($stmt = $conexao->prepare($sql)) {
-    // bind_param atualizado com os tipos e variáveis corretos
-    // s = string, i = integer
-    $stmt->bind_param("ssisssss", $nome, $localizacao, $id_usuario, $contato, $descricao, $caminho_foto, $cidade, $estado);
+    // bind_param atualizado: ssisssi
+    $stmt->bind_param("ssisssi", $nome, $localizacao, $id_usuario, $contato, $descricao, $caminho_foto, $cidade_id);
 
     if ($stmt->execute()) {
         echo "Loja cadastrada com sucesso! Redirecionando...";

@@ -1,5 +1,4 @@
 <?php
-// Crie este novo arquivo: editar_loja.php
 require_once 'config.php';
 
 // Redireciona se não estiver logado
@@ -12,9 +11,14 @@ $id_loja = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $id_usuario = $_SESSION['id'];
 $loja = null;
 
-// Busca os dados da loja no banco, mas APENAS se o dono for o usuário logado
 if ($id_loja > 0) {
-    $sql = "SELECT * FROM lojas WHERE id = ? AND id_usuario = ?";
+    // Query ATUALIZADA com JOIN para buscar também o ID do estado da loja
+    $sql = "
+        SELECT l.*, c.estado_id 
+        FROM lojas l 
+        JOIN cidades c ON l.cidade_id = c.id 
+        WHERE l.id = ? AND l.id_usuario = ?
+    ";
     if ($stmt = $conexao->prepare($sql)) {
         $stmt->bind_param("ii", $id_loja, $id_usuario);
         $stmt->execute();
@@ -22,7 +26,6 @@ if ($id_loja > 0) {
         if ($resultado->num_rows == 1) {
             $loja = $resultado->fetch_assoc();
         } else {
-            // Se não encontrou a loja ou o usuário não é o dono, redireciona
             header("location: minhas_lojas.php");
             exit;
         }
@@ -33,7 +36,7 @@ if ($id_loja > 0) {
     exit;
 }
 
-// Busca a lista de estados para o dropdown
+// Busca a lista de todos os estados para preencher o dropdown
 $estados = [];
 $sql_estados = "SELECT id, nome FROM estados ORDER BY nome ASC";
 $res_estados = $conexao->query($sql_estados);
@@ -55,15 +58,16 @@ if ($res_estados) {
         <h2>Editar Loja</h2>
         <form action="processa_edicao_loja.php" method="post" enctype="multipart/form-data">
             <input type="hidden" name="id_loja" value="<?php echo $loja['id']; ?>">
+            <input type="hidden" name="foto_atual" value="<?php echo htmlspecialchars($loja['caminho_foto']); ?>">
 
             <label for="nome">Nome da Loja:</label>
             <input type="text" id="nome" name="nome" value="<?php echo htmlspecialchars($loja['nome']); ?>" required>
             
             <label for="estado">Estado:</label>
             <select id="estado" name="estado_id" required>
-                <option value="">-- Selecione --</option>
+                <option value="">-- Selecione um Estado --</option>
                 <?php foreach($estados as $estado): ?>
-                    <option value="<?php echo $estado['id']; ?>" <?php // Lógica para selecionar o estado atual da loja ?> >
+                    <option value="<?php echo $estado['id']; ?>" <?php if ($estado['id'] == $loja['estado_id']) echo 'selected'; ?>>
                         <?php echo htmlspecialchars($estado['nome']); ?>
                     </option>
                 <?php endforeach; ?>
@@ -71,7 +75,7 @@ if ($res_estados) {
 
             <label for="cidade">Cidade:</label>
             <select id="cidade" name="cidade_id" required>
-                <option value="<?php echo $loja['cidade_id']; ?>">-- Carregando... --</option>
+                <option value="">-- Escolha um estado primeiro --</option>
             </select>
             
             <label for="localizacao">Endereço:</label>
@@ -83,9 +87,9 @@ if ($res_estados) {
             <label for="descricao">Descrição:</label>
             <textarea id="descricao" name="descricao"><?php echo htmlspecialchars($loja['descricao']); ?></textarea>
 
-            <label for="foto">Nova Foto (deixe em branco para manter a atual):</label>
-            <?php if (!empty($loja['caminho_foto'])): ?>
-                <p>Foto atual: <img src="<?php echo htmlspecialchars($loja['caminho_foto']); ?>" width="100"></p>
+            <label for="foto">Alterar Foto (deixe em branco para manter a atual):</label>
+            <?php if (!empty($loja['caminho_foto']) && file_exists($loja['caminho_foto'])): ?>
+                <p><img src="<?php echo htmlspecialchars($loja['caminho_foto']); ?>" width="100" alt="Foto atual"></p>
             <?php endif; ?>
             <input type="file" id="foto" name="foto" accept="image/*">
 
@@ -95,14 +99,45 @@ if ($res_estados) {
     </div>
 
     <script>
-    // Este JavaScript é um pouco mais complexo para pré-selecionar e carregar os dados
     document.addEventListener('DOMContentLoaded', function() {
         const estadoSelect = document.getElementById('estado');
         const cidadeSelect = document.getElementById('cidade');
-        
-        // Simula um evento 'change' para carregar as cidades do estado já salvo
-        // Você precisaria de um pouco mais de JS para pegar o estado_id da cidade_id para pré-selecionar o estado
-        // Por simplicidade, vamos deixar o usuário re-selecionar.
+        const estadoInicialId = '<?php echo $loja['estado_id']; ?>';
+        const cidadeInicialId = '<?php echo $loja['cidade_id']; ?>';
+
+        function carregarCidades(estadoId, cidadeSelecionadaId = null) {
+            if (!estadoId) {
+                cidadeSelect.innerHTML = '<option value="">-- Escolha um estado primeiro --</option>';
+                cidadeSelect.disabled = true;
+                return;
+            }
+            
+            cidadeSelect.innerHTML = '<option value="">Carregando...</option>';
+            cidadeSelect.disabled = false;
+
+            fetch('buscar_cidades.php?estado_id=' + estadoId)
+                .then(response => response.json())
+                .then(cidades => {
+                    cidadeSelect.innerHTML = '<option value="">-- Selecione uma Cidade --</option>';
+                    cidades.forEach(cidade => {
+                        const option = document.createElement('option');
+                        option.value = cidade.id;
+                        option.textContent = cidade.nome;
+                        if (cidade.id == cidadeSelecionadaId) {
+                            option.selected = true;
+                        }
+                        cidadeSelect.appendChild(option);
+                    });
+                });
+        }
+
+        // Listener para quando o usuário muda o estado
+        estadoSelect.addEventListener('change', () => carregarCidades(estadoSelect.value));
+
+        // Ao carregar a página, se já houver um estado, carrega as cidades dele
+        if (estadoInicialId) {
+            carregarCidades(estadoInicialId, cidadeInicialId);
+        }
     });
     </script>
 </body>

@@ -34,14 +34,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nome = $_POST['nome'];
     $tipo_animal = $_POST['tipo_animal'];
     $raca = $_POST['raca'];
-    $idade = intval($_POST['idade']);
+    $idade = !empty($_POST['idade']) ? intval($_POST['idade']) : null;
 
     // Comando UPDATE para pets, com verificação de dono e atualização da foto
     $sql = "UPDATE pets SET nome = ?, tipo_animal = ?, raca = ?, idade = ?, caminho_foto = ? WHERE id = ? AND id_usuario = ?";
     
     if ($stmt = $conexao->prepare($sql)) {
-        // bind_param ATUALIZADO (ssssii)
-        $stmt->bind_param("sssisi", $nome, $tipo_animal, $raca, $idade, $novo_caminho_foto, $id_pet, $id_usuario);
+        // LINHA CORRIGIDA: A string de tipos agora é "sssisii"
+        $stmt->bind_param("sssisii", $nome, $tipo_animal, $raca, $idade, $novo_caminho_foto, $id_pet, $id_usuario);
         
         if ($stmt->execute()) {
             echo "Pet atualizado com sucesso!";
@@ -50,6 +50,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             echo "Erro ao atualizar o pet: " . $stmt->error;
         }
         $stmt->close();
+    } else {
+        echo "Erro ao preparar a query: " . $conexao->error;
     }
     $conexao->close();
 }

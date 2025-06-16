@@ -1,8 +1,8 @@
 <?php
 // Definições do banco de dados
-define('DB_SERVER', 'localhost:3310');
+define('DB_SERVER', 'localhost:3306');
 define('DB_USERNAME', 'root'); // Seu usuário do DB
-define('DB_PASSWORD', 'GabrielSB0110'); // A senha fica vazia, entre aspas simples // Sua senha do DB
+define('DB_PASSWORD', 'ceub123456'); // A senha fica vazia, entre aspas simples // Sua senha do DB
 define('DB_NAME', 'meu_site'); // O nome do seu DB
 
 // Tenta conectar ao banco de dados MySQL
